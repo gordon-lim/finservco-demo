@@ -55,6 +55,10 @@ notificationRouter.post('/send', async (req: Request, res: Response) => {
 
   notificationLog.push(logEntry);
 
+  const correlationId = (req.headers['x-correlation-id'] as string) || createCorrelationId();
+  const actorId = (req.headers['x-actor-id'] as string) || 'system';
+  const actorType: 'user' | 'system' = req.headers['x-actor-id'] ? 'user' : 'system';
+
   try {
     switch (channel) {
       case 'email':
@@ -88,14 +92,12 @@ notificationRouter.post('/send', async (req: Request, res: Response) => {
     logEntry.status = 'sent';
     logEntry.sentAt = getCurrentTimestamp();
 
-    const correlationId = (req.headers['x-correlation-id'] as string) || createCorrelationId();
-
     emitAuditEvent({
       eventType: 'NOTIFICATION_SENT',
       aggregateType: 'Notification',
       aggregateId: notificationId,
-      actorId: (req.headers['x-actor-id'] as string) || 'system',
-      actorType: (req.headers['x-actor-id'] ? 'user' : 'system') as 'user' | 'system',
+      actorId,
+      actorType,
       correlationId,
       payload: {
         accountId,
@@ -113,14 +115,12 @@ notificationRouter.post('/send', async (req: Request, res: Response) => {
   } catch (error) {
     logEntry.status = 'failed';
 
-    const correlationId = (req.headers['x-correlation-id'] as string) || createCorrelationId();
-
     emitAuditEvent({
       eventType: 'NOTIFICATION_FAILED',
       aggregateType: 'Notification',
       aggregateId: notificationId,
-      actorId: (req.headers['x-actor-id'] as string) || 'system',
-      actorType: (req.headers['x-actor-id'] ? 'user' : 'system') as 'user' | 'system',
+      actorId,
+      actorType,
       correlationId,
       payload: {
         accountId,
