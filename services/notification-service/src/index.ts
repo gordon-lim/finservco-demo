@@ -9,33 +9,25 @@ const PORT = process.env.PORT || 3004;
 
 app.use(express.json());
 
-// BUG (Issue #18): Memory leak - EventEmitter listeners never cleaned up
-// Every request adds a new listener, but they're never removed
 const notificationBus = new EventEmitter();
 
-// This grows unbounded over time - a classic memory leak
-app.use((req, _res, next) => {
-  // BUG: Adding listener on every request without removing old ones
-  notificationBus.on('notification:sent', (data) => {
-    logger.info('Notification sent event received', data);
-  });
+// Register event listeners once at startup instead of per-request
+notificationBus.on('notification:sent', (data) => {
+  logger.info('Notification sent event received', data);
+});
 
-  notificationBus.on('notification:failed', (data) => {
-    logger.warn('Notification failed event received', data);
-  });
-
-  next();
+notificationBus.on('notification:failed', (data) => {
+  logger.warn('Notification failed event received', data);
 });
 
 app.use('/api/notifications', notificationRouter);
 
 app.get('/health', (_req, res) => {
-  // BUG (Issue #18): Exposes the growing listener count
   const listenerCount = notificationBus.listenerCount('notification:sent');
   res.json({
     status: 'ok',
     service: 'notification-service',
-    eventListeners: listenerCount, // This number grows with every request
+    eventListeners: listenerCount,
   });
 });
 
