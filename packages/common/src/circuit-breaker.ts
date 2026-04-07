@@ -1,3 +1,5 @@
+import type { RiskLevel } from './types';
+
 export type CircuitBreakerState = 'CLOSED' | 'OPEN' | 'HALF-OPEN';
 
 export interface CircuitBreakerLogger {
@@ -213,21 +215,23 @@ export class CircuitBreakerOpenError extends Error {
   }
 }
 
-/**
- * Risk engine fallback strategy based on transaction value.
- * - Low-value transactions (<$1000): Auto-approve with riskLevel "low", flagged for async review.
- * - High-value transactions (>=$1000): Return "pending", queued for review when service recovers.
- */
-export function riskEngineFallback(
-  transactionAmount: number,
-  logger: CircuitBreakerLogger = noopLogger,
-): {
-  riskLevel: string;
+export interface RiskEngineFallbackResult {
+  riskLevel: RiskLevel;
   score: number;
   flags: string[];
   reviewRequired: boolean;
   fallback: boolean;
-} {
+}
+
+/**
+ * Risk engine fallback strategy based on transaction value.
+ * - Low-value transactions (<$1000): Auto-approve with riskLevel "low", flagged for async review.
+ * - High-value transactions (>=$1000): Return riskLevel "high" with reviewRequired, queued for review when service recovers.
+ */
+export function riskEngineFallback(
+  transactionAmount: number,
+  logger: CircuitBreakerLogger = noopLogger,
+): RiskEngineFallbackResult {
   if (transactionAmount < 1000) {
     logger.warn('Risk engine fallback: auto-approving low-value transaction', {
       amount: transactionAmount,
@@ -247,7 +251,7 @@ export function riskEngineFallback(
     action: 'pending-review',
   });
   return {
-    riskLevel: 'pending',
+    riskLevel: 'high',
     score: -1,
     flags: ['circuit-breaker-fallback', 'queued-for-review'],
     reviewRequired: true,

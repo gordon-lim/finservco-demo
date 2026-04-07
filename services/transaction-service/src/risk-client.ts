@@ -29,7 +29,7 @@ export async function assessTransactionRisk(transaction: Transaction): Promise<R
       return response.json() as Promise<RiskAssessment>;
     },
     () => {
-      const fallbackResult = riskEngineFallback(transaction.amount);
+      const fallbackResult = riskEngineFallback(transaction.amount, logger);
 
       logger.warn('Using risk engine fallback for transaction', {
         transactionId: transaction.id,
@@ -37,14 +37,15 @@ export async function assessTransactionRisk(transaction: Transaction): Promise<R
         fallbackRiskLevel: fallbackResult.riskLevel,
       });
 
-      return {
+      const assessment: RiskAssessment = {
         transactionId: transaction.id,
         riskLevel: fallbackResult.riskLevel,
         score: fallbackResult.score,
         flags: fallbackResult.flags,
         reviewRequired: fallbackResult.reviewRequired,
         assessedAt: new Date(),
-      } as RiskAssessment;
+      };
+      return assessment;
     },
   );
 }

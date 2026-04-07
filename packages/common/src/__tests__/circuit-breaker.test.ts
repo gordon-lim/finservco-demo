@@ -289,7 +289,7 @@ describe('riskEngineFallback', () => {
 
   it('should queue high-value transactions (>=$1000) for review', () => {
     const result = riskEngineFallback(1000);
-    expect(result.riskLevel).toBe('pending');
+    expect(result.riskLevel).toBe('high');
     expect(result.score).toBe(-1);
     expect(result.reviewRequired).toBe(true);
     expect(result.fallback).toBe(true);
@@ -305,7 +305,7 @@ describe('riskEngineFallback', () => {
 
   it('should queue $5000 transaction for review', () => {
     const result = riskEngineFallback(5000);
-    expect(result.riskLevel).toBe('pending');
+    expect(result.riskLevel).toBe('high');
     expect(result.reviewRequired).toBe(true);
   });
 });
