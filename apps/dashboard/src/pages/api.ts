@@ -129,10 +129,20 @@ apiRouter.get('/audit-log', (req: Request, res: Response) => {
     query.actorId = req.query.actorId as string;
   }
   if (req.query.startTime) {
-    query.startTime = new Date(req.query.startTime as string);
+    const d = new Date(req.query.startTime as string);
+    if (isNaN(d.getTime())) {
+      res.status(400).json({ error: 'Invalid startTime format' });
+      return;
+    }
+    query.startTime = d;
   }
   if (req.query.endTime) {
-    query.endTime = new Date(req.query.endTime as string);
+    const d = new Date(req.query.endTime as string);
+    if (isNaN(d.getTime())) {
+      res.status(400).json({ error: 'Invalid endTime format' });
+      return;
+    }
+    query.endTime = d;
   }
   if (req.query.limit) {
     query.limit = parseInt(req.query.limit as string, 10);
