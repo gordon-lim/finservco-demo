@@ -24,7 +24,7 @@ function buildEmailHtml(subject: string, body: string): string {
           <h2>${escapeHtml(subject)}</h2>
         </div>
         <div class="content">
-          <p>${escapeHtml(body)}</p>
+          <p>${body}</p>
         </div>
         <div class="footer">
           <p>This is an automated notification from FinServCo. Do not reply to this email.</p>
