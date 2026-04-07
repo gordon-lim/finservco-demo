@@ -1,0 +1,11 @@
+{
+  "name": "@finservco/risk-engine",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "ts-node src/index.ts",
+    "test": "jest"
+  }
+}

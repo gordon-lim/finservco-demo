@@ -1,0 +1,34 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "outDir": "./dist",
+    "rootDir": ".",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
+    "paths": {
+      "@finservco/common": ["./packages/common/src"],
+      "@finservco/logger": ["./packages/logger/src"],
+      "@finservco/validators": ["./packages/validators/src"]
+    }
+  },
+  "references": [
+    { "path": "./packages/common" },
+    { "path": "./packages/logger" },
+    { "path": "./packages/validators" },
+    { "path": "./services/account-service" },
+    { "path": "./services/transaction-service" },
+    { "path": "./services/risk-engine" },
+    { "path": "./services/notification-service" },
+    { "path": "./apps/dashboard" }
+  ],
+  "exclude": ["node_modules", "dist"]
+}
