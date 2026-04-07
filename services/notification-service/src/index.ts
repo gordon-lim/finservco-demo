@@ -2,10 +2,15 @@ import express from 'express';
 import { createLogger } from '../../../packages/logger/src';
 import { notificationRouter } from './channels/notification-router';
 import { EventEmitter } from 'events';
+import { IdempotencyStore } from '../../../packages/common/src/idempotency-store';
+import { createIdempotencyMiddleware } from '../../../packages/common/src/idempotency-middleware';
 
 const app = express();
 const logger = createLogger('notification-service');
 const PORT = process.env.PORT || 3004;
+
+// Idempotency store for notification service
+const idempotencyStore = new IdempotencyStore();
 
 app.use(express.json());
 
@@ -26,6 +31,12 @@ app.use((req, _res, next) => {
 
   next();
 });
+
+// Idempotency middleware for mutation endpoints
+app.use(createIdempotencyMiddleware({
+  store: idempotencyStore,
+  getUserId: (req) => (req.headers['x-user-id'] as string) || 'anonymous',
+}));
 
 app.use('/api/notifications', notificationRouter);
 

@@ -2,10 +2,15 @@ import express, { Request, Response, NextFunction } from 'express';
 import { createLogger } from '../../../packages/logger/src';
 import { assessTransactionRisk } from './rules/risk-rules';
 import type { Transaction } from '../../../packages/common/src/types';
+import { IdempotencyStore } from '../../../packages/common/src/idempotency-store';
+import { createIdempotencyMiddleware } from '../../../packages/common/src/idempotency-middleware';
 
 const app = express();
 const logger = createLogger('risk-engine');
 const PORT = process.env.PORT || 3003;
+
+// Idempotency store for risk engine
+const idempotencyStore = new IdempotencyStore();
 
 app.use(express.json());
 
@@ -13,6 +18,12 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   logger.info(`${req.method} ${req.path}`);
   next();
 });
+
+// Idempotency middleware for mutation endpoints
+app.use(createIdempotencyMiddleware({
+  store: idempotencyStore,
+  getUserId: (req) => (req.headers['x-user-id'] as string) || 'anonymous',
+}));
 
 // POST /api/risk/assess - Assess transaction risk
 app.post('/api/risk/assess', (req: Request, res: Response) => {
