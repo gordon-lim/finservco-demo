@@ -64,7 +64,7 @@ export function createTransaction(data: {
   // BUG (Issue #5): Debug logging left in production
   console.log('DEBUG: Creating transaction:', JSON.stringify(data));
 
-  const now = getCurrentTimestamp(); // BUG (Issue #11): local time instead of UTC
+  const now = getCurrentTimestamp();
 
   const transaction: Transaction = {
     id: generateId(),
