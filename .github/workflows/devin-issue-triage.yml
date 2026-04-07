@@ -1,0 +1,114 @@
+name: Devin issue triage
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  create-devin-session:
+    if: ${{ !contains(github.event.issue.labels.*.name, 'devin-triaged') }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ensure jq is available
+        run: |
+          if ! command -v jq >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y jq
+          fi
+
+      - name: Build prompt file
+        run: |
+          cat > prompt.txt <<EOF
+          Triage this issue:
+          ${{ github.event.issue.html_url }}
+          
+          Title: ${{ github.event.issue.title }}
+
+          Body:
+          ${{ github.event.issue.body }}
+
+          First, triage the issue by determining exactly one type label:
+          - bug
+          - feature request
+          - question
+
+          Then determine exactly one difficulty label:
+          - good first issue
+          - junior
+          - mid
+          - senior
+
+          Add the chosen labels to the issue.
+          Add the label:
+          - devin triaged
+
+          Post a short concise comment to the issue with:
+          - the chosen type
+          - the chosen difficulty
+          - a short explanation
+
+          REQUIREMENTS:
+          - Do not open PRs for questions
+          - If you open a PR, include this exact line in the PR description:
+            Fixes ${{ github.repository }}#${{ github.event.issue.number }}
+          - For every commit message in that PR, include:
+            Refs ${{ github.repository }}#${{ github.event.issue.number }}
+          EOF
+
+      - name: Create Devin session
+        id: devin
+        env:
+          DEVIN_API_KEY: ${{ secrets.DEVIN_API_KEY }}
+        run: |
+          set -eo pipefail
+
+          resp=$(curl -fSs "https://api.devin.ai/v3/organizations/${{ vars.DEVIN_ORG_ID }}/sessions" \
+            -H "Authorization: Bearer $DEVIN_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+                  --rawfile prompt prompt.txt \
+                  --arg title "Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}" \
+                  --arg repo "${{ github.repository }}" \
+                  --arg issue "${{ github.event.issue.number }}" \
+                  '{
+                    prompt: $prompt,
+                    title: $title,
+                    repos: [$repo],
+                    tags: [
+                      "src:github",
+                      "repo:"+$repo,
+                      "issue:"+$issue,
+                      "workflow:devin-issue-intake"
+                    ]
+                  }')" )
+
+          echo "$resp" > resp.json
+
+          url=$(jq -er '.url' resp.json)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+          session_id=$(jq -er '.session_id' resp.json)
+          echo "session_id=$session_id" >> "$GITHUB_OUTPUT"
+
+      - name: Comment on issue with session link
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          jq -n \
+            --arg url "${{ steps.devin.outputs.url }}" \
+            '{
+              body: "🤖 Devin is on it.\n\n**Session:** \($url)"
+            }' > body.json
+
+          curl -fSs -X POST \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            --data @body.json \
+            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments"
