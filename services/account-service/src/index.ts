@@ -1,10 +1,15 @@
 import express from 'express';
 import { createLogger } from '../../../packages/logger/src';
 import { accountRouter } from './routes/accounts';
+import { IdempotencyStore } from '../../../packages/common/src/idempotency-store';
+import { createIdempotencyMiddleware } from '../../../packages/common/src/idempotency-middleware';
 
 const app = express();
 const logger = createLogger('account-service');
 const PORT = process.env.PORT || 3001;
+
+// Idempotency store for account service
+const idempotencyStore = new IdempotencyStore();
 
 app.use(express.json());
 
@@ -16,6 +21,12 @@ app.use((req, _res, next) => {
   });
   next();
 });
+
+// Idempotency middleware for mutation endpoints
+app.use(createIdempotencyMiddleware({
+  store: idempotencyStore,
+  getUserId: (req) => (req.headers['x-user-id'] as string) || 'anonymous',
+}));
 
 app.use('/api/accounts', accountRouter);
 
