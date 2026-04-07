@@ -4,7 +4,8 @@ import { escapeHtml } from '../../../../packages/common/src/utils';
 
 const logger = createLogger('email-channel');
 
-function buildEmailHtml(subject: string, body: string): string {
+function buildEmailHtml(subject: string, body: string, isHtml = false): string {
+  const safeBody = isHtml ? body : escapeHtml(body);
   return `
     <!DOCTYPE html>
     <html>
@@ -24,7 +25,7 @@ function buildEmailHtml(subject: string, body: string): string {
           <h2>${escapeHtml(subject)}</h2>
         </div>
         <div class="content">
-          <p>${body}</p>
+          <p>${safeBody}</p>
         </div>
         <div class="footer">
           <p>This is an automated notification from FinServCo. Do not reply to this email.</p>
@@ -40,16 +41,17 @@ export async function sendEmail(
   to: string,
   subject: string,
   body: string,
-  retryCount = 0
+  options: { isHtml?: boolean; retryCount?: number } = {}
 ): Promise<void> {
-  const html = buildEmailHtml(subject, body);
+  const { isHtml = false, retryCount = 0 } = options;
+  const html = buildEmailHtml(subject, body, isHtml);
 
   try {
     // Simulated email sending - in production this would use SMTP/SES/SendGrid
     logger.info('Sending email', { to, subject });
 
     // Simulate occasional failures for retry testing
-    if (Math.random() < 0.1 && retryCount < NOTIFICATION_RETRY_ATTEMPTS) {
+    if (Math.random() < 0.1 && (options.retryCount ?? 0) < NOTIFICATION_RETRY_ATTEMPTS) {
       throw new Error('SMTP connection timeout');
     }
 
@@ -65,7 +67,7 @@ export async function sendEmail(
       });
 
       await new Promise((resolve) => setTimeout(resolve, NOTIFICATION_RETRY_DELAY_MS));
-      return sendEmail(to, subject, body, retryCount + 1);
+      return sendEmail(to, subject, body, { isHtml, retryCount: retryCount + 1 });
     }
 
     logger.error('Email send failed after all retries', {

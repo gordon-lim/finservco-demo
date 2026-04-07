@@ -3,7 +3,7 @@ import { sendEmail } from './email';
 import { sendSms } from './sms';
 import type { NotificationChannel } from '../../../../packages/common/src/types';
 import { createLogger } from '../../../../packages/logger/src';
-import { generateId, getCurrentTimestamp, escapeHtml } from '../../../../packages/common/src/utils';
+import { generateId, getCurrentTimestamp } from '../../../../packages/common/src/utils';
 
 const logger = createLogger('notification-router');
 
@@ -59,7 +59,7 @@ notificationRouter.post('/send', async (req: Request, res: Response) => {
           res.status(400).json({ error: 'recipientEmail is required for email notifications' });
           return;
         }
-        await sendEmail(recipientEmail, subject, escapeHtml(body));
+        await sendEmail(recipientEmail, subject, body);
         break;
 
       case 'sms':
