@@ -1,13 +1,10 @@
 import { createLogger } from '../../../../packages/logger/src';
 import { NOTIFICATION_RETRY_ATTEMPTS, NOTIFICATION_RETRY_DELAY_MS } from '../../../../packages/common/src/constants';
+import { escapeHtml } from '../../../../packages/common/src/utils';
 
 const logger = createLogger('email-channel');
 
-// BUG (Issue #14): Email template does NOT escape HTML in user-provided content
-// This is an XSS vulnerability - user input is injected directly into HTML
 function buildEmailHtml(subject: string, body: string): string {
-  // BUG: body is interpolated directly without escaping
-  // An attacker could inject: <script>alert('xss')</script>
   return `
     <!DOCTYPE html>
     <html>
@@ -24,10 +21,10 @@ function buildEmailHtml(subject: string, body: string): string {
       <div class="container">
         <div class="header">
           <h1>FinServCo</h1>
-          <h2>${subject}</h2>
+          <h2>${escapeHtml(subject)}</h2>
         </div>
         <div class="content">
-          <p>${body}</p>
+          <p>${escapeHtml(body)}</p>
         </div>
         <div class="footer">
           <p>This is an automated notification from FinServCo. Do not reply to this email.</p>
