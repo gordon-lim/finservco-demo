@@ -22,8 +22,6 @@ export function getTransactionsByAccountId(accountId: string): Transaction[] {
   );
 }
 
-// BUG (Issue #13): Broken pagination for transaction history
-// Sort order is inconsistent - sometimes by createdAt, sometimes by id
 export function getTransactionsPaginated(
   accountId: string,
   page: number,
@@ -31,14 +29,11 @@ export function getTransactionsPaginated(
 ): { transactions: Transaction[]; total: number } {
   const filtered = getTransactionsByAccountId(accountId);
 
-  // BUG: Sort is non-deterministic for transactions with the same timestamp
-  // This causes items to appear on multiple pages or be skipped entirely
   filtered.sort((a, b) => {
     const timeA = a.createdAt.getTime();
     const timeB = b.createdAt.getTime();
     if (timeA === timeB) {
-      // Missing tiebreaker - should sort by id as secondary key
-      return 0;
+      return a.id.localeCompare(b.id);
     }
     return timeB - timeA;
   });
