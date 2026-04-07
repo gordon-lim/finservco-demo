@@ -145,10 +145,16 @@ apiRouter.get('/audit-log', (req: Request, res: Response) => {
     query.endTime = d;
   }
   if (req.query.limit) {
-    query.limit = parseInt(req.query.limit as string, 10);
+    const parsed = parseInt(req.query.limit as string, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      query.limit = parsed;
+    }
   }
   if (req.query.offset) {
-    query.offset = parseInt(req.query.offset as string, 10);
+    const parsed = parseInt(req.query.offset as string, 10);
+    if (!isNaN(parsed) && parsed >= 0) {
+      query.offset = parsed;
+    }
   }
 
   const result = store.query(query);
