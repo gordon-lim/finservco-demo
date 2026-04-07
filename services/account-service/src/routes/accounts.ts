@@ -12,6 +12,9 @@ import { NotFoundError, InsufficientFundsError } from '../../../../packages/comm
 import { validateHolderName, validateAccountType, validateCurrency } from '../../../../packages/validators/src';
 import { DEFAULT_PAGE_SIZE } from '../../../../packages/common/src/constants';
 import type { AccountType, Currency, PaginatedResponse, Account } from '../../../../packages/common/src/types';
+import { emitAuditEvent, createCorrelationId } from '../../../../packages/common/src/audit';
+
+const SERVICE_NAME = 'account-service';
 
 export const accountRouter = Router();
 
@@ -79,11 +82,30 @@ accountRouter.post('/', (req: Request, res: Response) => {
     }
   }
 
+  const correlationId = (req.headers['x-correlation-id'] as string) || createCorrelationId();
+
   const account = createAccount({
     holderName,
     type: type as AccountType,
     currency: currency as Currency,
     interestRate: interestRate || 0,
+  });
+
+  emitAuditEvent({
+    eventType: 'ACCOUNT_CREATED',
+    aggregateType: 'Account',
+    aggregateId: account.id,
+    actorId: (req.headers['x-actor-id'] as string) || 'system',
+    actorType: (req.headers['x-actor-id'] ? 'user' : 'system') as 'user' | 'system',
+    correlationId,
+    payload: {
+      holderName: account.holderName,
+      type: account.type,
+      currency: account.currency,
+      accountNumber: account.accountNumber,
+    },
+    service: SERVICE_NAME,
+    ip: req.ip,
   });
 
   // BUG (Issue #2): Returns 200 instead of 201 for resource creation
@@ -108,9 +130,32 @@ accountRouter.put('/:id', (req: Request, res: Response) => {
     }
   }
 
+  const correlationId = (req.headers['x-correlation-id'] as string) || createCorrelationId();
+
   const updated = updateAccount(req.params.id, {
     ...(holderName && { holderName }),
     ...(status && { status }),
+  });
+
+  emitAuditEvent({
+    eventType: 'ACCOUNT_UPDATED',
+    aggregateType: 'Account',
+    aggregateId: req.params.id,
+    actorId: (req.headers['x-actor-id'] as string) || 'system',
+    actorType: (req.headers['x-actor-id'] ? 'user' : 'system') as 'user' | 'system',
+    correlationId,
+    payload: {
+      changes: {
+        ...(holderName && { holderName }),
+        ...(status && { status }),
+      },
+      previousState: {
+        holderName: existing.holderName,
+        status: existing.status,
+      },
+    },
+    service: SERVICE_NAME,
+    ip: req.ip,
   });
 
   res.json(updated);
@@ -130,6 +175,25 @@ accountRouter.delete('/:id', (req: Request, res: Response) => {
     console.log(`Warning: closing account with balance ${existing.balance}`); // BUG (Issue #5): console.log in production
   }
 
+  const correlationId = (req.headers['x-correlation-id'] as string) || createCorrelationId();
+
   deleteAccount(req.params.id);
+
+  emitAuditEvent({
+    eventType: 'ACCOUNT_CLOSED',
+    aggregateType: 'Account',
+    aggregateId: req.params.id,
+    actorId: (req.headers['x-actor-id'] as string) || 'system',
+    actorType: (req.headers['x-actor-id'] ? 'user' : 'system') as 'user' | 'system',
+    correlationId,
+    payload: {
+      accountNumber: existing.accountNumber,
+      holderName: existing.holderName,
+      finalBalance: existing.balance,
+    },
+    service: SERVICE_NAME,
+    ip: req.ip,
+  });
+
   res.status(204).send();
 });

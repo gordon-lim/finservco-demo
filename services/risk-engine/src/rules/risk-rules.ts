@@ -1,6 +1,9 @@
 import type { Transaction, RiskAssessment, RiskLevel } from '../../../../packages/common/src/types';
 import { RISK_SCORE_THRESHOLDS, MAX_DAILY_TRANSFER_AMOUNT } from '../../../../packages/common/src/constants';
 import { getCurrentTimestamp } from '../../../../packages/common/src/utils';
+import { emitAuditEvent } from '../../../../packages/common/src/audit';
+
+const SERVICE_NAME = 'risk-engine';
 
 interface RiskRule {
   name: string;
@@ -83,7 +86,7 @@ export function assessTransactionRisk(transaction: Transaction): RiskAssessment 
 
   const riskLevel = calculateRiskLevel(totalScore);
 
-  return {
+  const assessment: RiskAssessment = {
     transactionId: transaction.id,
     riskLevel,
     score: totalScore,
@@ -91,7 +94,41 @@ export function assessTransactionRisk(transaction: Transaction): RiskAssessment 
     reviewRequired: riskLevel === 'high' || riskLevel === 'critical',
     assessedAt: getCurrentTimestamp(),
   };
-}
 
-// MISSING FEATURE (Issue #17): No audit trail for risk assessments
-// Assessments should be persisted for compliance, but they're only returned and forgotten
+  emitAuditEvent({
+    eventType: 'RISK_ASSESSED',
+    aggregateType: 'RiskAssessment',
+    aggregateId: transaction.id,
+    actorId: 'system',
+    actorType: 'system',
+    correlationId: (transaction.metadata?.correlationId as string) || transaction.id,
+    payload: {
+      transactionId: transaction.id,
+      riskLevel,
+      score: totalScore,
+      flags,
+      reviewRequired: assessment.reviewRequired,
+    },
+    service: SERVICE_NAME,
+  });
+
+  if (assessment.reviewRequired) {
+    emitAuditEvent({
+      eventType: 'RISK_REVIEW_REQUIRED',
+      aggregateType: 'RiskAssessment',
+      aggregateId: transaction.id,
+      actorId: 'system',
+      actorType: 'system',
+      correlationId: (transaction.metadata?.correlationId as string) || transaction.id,
+      payload: {
+        transactionId: transaction.id,
+        riskLevel,
+        score: totalScore,
+        flags,
+      },
+      service: SERVICE_NAME,
+    });
+  }
+
+  return assessment;
+}

@@ -4,6 +4,9 @@ import { sendSms } from './sms';
 import type { NotificationChannel } from '../../../../packages/common/src/types';
 import { createLogger } from '../../../../packages/logger/src';
 import { generateId, getCurrentTimestamp } from '../../../../packages/common/src/utils';
+import { emitAuditEvent, createCorrelationId } from '../../../../packages/common/src/audit';
+
+const SERVICE_NAME = 'notification-service';
 
 const logger = createLogger('notification-router');
 
@@ -85,10 +88,50 @@ notificationRouter.post('/send', async (req: Request, res: Response) => {
     logEntry.status = 'sent';
     logEntry.sentAt = getCurrentTimestamp();
 
+    const correlationId = (req.headers['x-correlation-id'] as string) || createCorrelationId();
+
+    emitAuditEvent({
+      eventType: 'NOTIFICATION_SENT',
+      aggregateType: 'Notification',
+      aggregateId: notificationId,
+      actorId: (req.headers['x-actor-id'] as string) || 'system',
+      actorType: (req.headers['x-actor-id'] ? 'user' : 'system') as 'user' | 'system',
+      correlationId,
+      payload: {
+        accountId,
+        channel,
+        subject,
+        recipientEmail,
+        recipientPhone,
+      },
+      service: SERVICE_NAME,
+      ip: req.ip,
+    });
+
     logger.info('Notification sent', { notificationId, channel, accountId });
     res.status(201).json({ id: notificationId, status: 'sent' });
   } catch (error) {
     logEntry.status = 'failed';
+
+    const correlationId = (req.headers['x-correlation-id'] as string) || createCorrelationId();
+
+    emitAuditEvent({
+      eventType: 'NOTIFICATION_FAILED',
+      aggregateType: 'Notification',
+      aggregateId: notificationId,
+      actorId: (req.headers['x-actor-id'] as string) || 'system',
+      actorType: (req.headers['x-actor-id'] ? 'user' : 'system') as 'user' | 'system',
+      correlationId,
+      payload: {
+        accountId,
+        channel,
+        subject,
+        error: (error as Error).message,
+      },
+      service: SERVICE_NAME,
+      ip: req.ip,
+    });
+
     logger.error('Failed to send notification', {
       notificationId,
       channel,

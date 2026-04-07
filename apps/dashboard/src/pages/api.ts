@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { createLogger } from '../../../../packages/logger/src';
+import { getEventStore } from '../../../../packages/common/src/audit';
+import type { AggregateType, AuditEventType } from '../../../../packages/common/src/audit';
 
 const logger = createLogger('dashboard-api');
 
@@ -93,4 +95,69 @@ apiRouter.get('/recent-activity', (_req: Request, res: Response) => {
   ];
 
   res.json({ data: activities });
+});
+
+// GET /api/dashboard/audit-log - Query audit events
+apiRouter.get('/audit-log', (req: Request, res: Response) => {
+  const store = getEventStore();
+
+  const query: {
+    aggregateType?: AggregateType;
+    aggregateId?: string;
+    eventType?: AuditEventType;
+    correlationId?: string;
+    actorId?: string;
+    startTime?: Date;
+    endTime?: Date;
+    limit?: number;
+    offset?: number;
+  } = {};
+
+  if (req.query.aggregateType) {
+    query.aggregateType = req.query.aggregateType as AggregateType;
+  }
+  if (req.query.aggregateId) {
+    query.aggregateId = req.query.aggregateId as string;
+  }
+  if (req.query.eventType) {
+    query.eventType = req.query.eventType as AuditEventType;
+  }
+  if (req.query.correlationId) {
+    query.correlationId = req.query.correlationId as string;
+  }
+  if (req.query.actorId) {
+    query.actorId = req.query.actorId as string;
+  }
+  if (req.query.startTime) {
+    query.startTime = new Date(req.query.startTime as string);
+  }
+  if (req.query.endTime) {
+    query.endTime = new Date(req.query.endTime as string);
+  }
+  if (req.query.limit) {
+    query.limit = parseInt(req.query.limit as string, 10);
+  }
+  if (req.query.offset) {
+    query.offset = parseInt(req.query.offset as string, 10);
+  }
+
+  const result = store.query(query);
+  res.json(result);
+});
+
+// GET /api/dashboard/audit-log/aggregate/:type/:id - Get events for a specific aggregate
+apiRouter.get('/audit-log/aggregate/:type/:id', (req: Request, res: Response) => {
+  const store = getEventStore();
+  const events = store.getByAggregateId(
+    req.params.type as AggregateType,
+    req.params.id
+  );
+  res.json({ events, total: events.length });
+});
+
+// GET /api/dashboard/audit-log/correlation/:id - Get events by correlation ID
+apiRouter.get('/audit-log/correlation/:id', (req: Request, res: Response) => {
+  const store = getEventStore();
+  const events = store.getByCorrelationId(req.params.id);
+  res.json({ events, total: events.length });
 });
