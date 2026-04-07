@@ -59,7 +59,6 @@ notificationRouter.post('/send', async (req: Request, res: Response) => {
           res.status(400).json({ error: 'recipientEmail is required for email notifications' });
           return;
         }
-        // BUG (Issue #14): Email body not escaped - XSS vulnerability
         await sendEmail(recipientEmail, subject, body);
         break;
 

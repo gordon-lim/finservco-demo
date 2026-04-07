@@ -68,3 +68,12 @@ export function maskAccountNumber(accountNumber: string): string {
 export function roundToTwoDecimals(value: number): number {
   return Math.round(value * 100) / 100;
 }
+
+export function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
