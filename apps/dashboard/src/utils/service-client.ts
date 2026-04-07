@@ -62,6 +62,9 @@ export async function callService(
           ...options.headers,
         },
       });
+      if (!response.ok) {
+        throw new Error(`Service ${service} returned ${response.status}: ${response.statusText}`);
+      }
       return response;
     },
     fallback,
