@@ -69,7 +69,7 @@ function calculateRiskLevel(score: number): RiskLevel {
   return 'low';
 }
 
-export function assessTransactionRisk(transaction: Transaction): RiskAssessment {
+export function assessTransactionRisk(transaction: Transaction, correlationId?: string): RiskAssessment {
   let totalScore = 0;
   const flags: string[] = [];
 
@@ -101,7 +101,7 @@ export function assessTransactionRisk(transaction: Transaction): RiskAssessment 
     aggregateId: transaction.id,
     actorId: 'system',
     actorType: 'system',
-    correlationId: (transaction.metadata?.correlationId as string) || transaction.id,
+    correlationId: correlationId || transaction.id,
     payload: {
       transactionId: transaction.id,
       riskLevel,
@@ -119,7 +119,7 @@ export function assessTransactionRisk(transaction: Transaction): RiskAssessment 
       aggregateId: transaction.id,
       actorId: 'system',
       actorType: 'system',
-      correlationId: (transaction.metadata?.correlationId as string) || transaction.id,
+      correlationId: correlationId || transaction.id,
       payload: {
         transactionId: transaction.id,
         riskLevel,

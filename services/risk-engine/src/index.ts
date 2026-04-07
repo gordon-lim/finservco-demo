@@ -23,7 +23,8 @@ app.post('/api/risk/assess', (req: Request, res: Response) => {
   // Should have a fallback or circuit breaker to degrade gracefully
 
   try {
-    const assessment = assessTransactionRisk(transaction);
+    const correlationId = req.headers['x-correlation-id'] as string | undefined;
+    const assessment = assessTransactionRisk(transaction, correlationId);
     logger.info('Risk assessment completed', {
       transactionId: transaction.id,
       riskLevel: assessment.riskLevel,
