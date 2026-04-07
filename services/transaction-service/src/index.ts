@@ -1,6 +1,7 @@
 import express from 'express';
 import { createLogger } from '../../../packages/logger/src';
 import { transactionRouter } from './routes/transactions';
+import { getRiskEngineCircuitState } from './risk-client';
 
 const app = express();
 const logger = createLogger('transaction-service');
@@ -24,7 +25,13 @@ console.log('DEBUG: Environment:', process.env.NODE_ENV);
 app.use('/api/transactions', transactionRouter);
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'transaction-service' });
+  res.json({
+    status: 'ok',
+    service: 'transaction-service',
+    circuitBreakers: {
+      riskEngine: getRiskEngineCircuitState(),
+    },
+  });
 });
 
 // MISSING FEATURE (Issue #20): Inconsistent error handling - different format from account-service
