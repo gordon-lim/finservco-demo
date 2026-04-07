@@ -151,18 +151,21 @@ export class CircuitBreaker {
   }
 
   private handleFallback<T>(fallback?: () => T | Promise<T>): T | Promise<T> {
-    this.totalFallbacks++;
-
-    this.logger.warn('Circuit open, using fallback', {
-      name: this.name,
-      totalFallbacks: this.totalFallbacks,
-    });
-
     if (fallback) {
+      this.totalFallbacks++;
+      this.logger.warn('Circuit open, using fallback', {
+        name: this.name,
+        totalFallbacks: this.totalFallbacks,
+      });
       return fallback();
     }
 
     if (this.config.fallbackResponse !== undefined) {
+      this.totalFallbacks++;
+      this.logger.warn('Circuit open, using fallback', {
+        name: this.name,
+        totalFallbacks: this.totalFallbacks,
+      });
       return this.config.fallbackResponse as T;
     }
 
