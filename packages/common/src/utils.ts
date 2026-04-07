@@ -50,12 +50,8 @@ export function calculatePagination(total: number, page: number, pageSize: numbe
   };
 }
 
-// BUG (Issue #11): Stores timestamps in local time instead of UTC
 export function getCurrentTimestamp(): Date {
-  // This creates a Date from local time string, losing timezone info
-  const now = new Date();
-  const localString = now.toLocaleString('en-US');
-  return new Date(localString);
+  return new Date();
 }
 
 export function maskAccountNumber(accountNumber: string): string {
