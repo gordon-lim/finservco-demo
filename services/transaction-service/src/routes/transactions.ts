@@ -11,8 +11,10 @@ import { validateAmount, validateCurrency, validateTransferRequest } from '../..
 import { DEFAULT_CURRENCY, DEFAULT_PAGE_SIZE } from '../../../../packages/common/src/constants';
 import type { Currency } from '../../../../packages/common/src/types';
 import { createLogger } from '../../../../packages/logger/src';
+import { emitAuditEvent, createCorrelationId } from '../../../../packages/common/src/audit';
 
 const logger = createLogger('transaction-routes');
+const SERVICE_NAME = 'transaction-service';
 
 export const transactionRouter = Router();
 
@@ -71,6 +73,8 @@ transactionRouter.post('/deposit', (req: Request, res: Response) => {
   // BUG (Issue #4): Hardcoded currency - ignores the currency parameter
   const txCurrency = DEFAULT_CURRENCY as Currency;
 
+  const correlationId = (req.headers['x-correlation-id'] as string) || createCorrelationId();
+
   const transaction = createTransaction({
     fromAccountId: null,
     toAccountId: accountId,
@@ -80,10 +84,42 @@ transactionRouter.post('/deposit', (req: Request, res: Response) => {
     description: description || 'Deposit',
   });
 
-  // MISSING FEATURE (Issue #17): No audit trail / event sourcing
-  // Should emit an event for compliance tracking
+  emitAuditEvent({
+    eventType: 'TRANSACTION_INITIATED',
+    aggregateType: 'Transaction',
+    aggregateId: transaction.id,
+    actorId: (req.headers['x-actor-id'] as string) || 'system',
+    actorType: (req.headers['x-actor-id'] ? 'user' : 'system') as 'user' | 'system',
+    correlationId,
+    payload: {
+      type: 'deposit',
+      toAccountId: accountId,
+      amount,
+      currency: txCurrency,
+    },
+    service: SERVICE_NAME,
+    ip: req.ip,
+  });
 
   updateTransactionStatus(transaction.id, 'completed');
+
+  emitAuditEvent({
+    eventType: 'TRANSACTION_COMPLETED',
+    aggregateType: 'Transaction',
+    aggregateId: transaction.id,
+    actorId: (req.headers['x-actor-id'] as string) || 'system',
+    actorType: (req.headers['x-actor-id'] ? 'user' : 'system') as 'user' | 'system',
+    correlationId,
+    payload: {
+      type: 'deposit',
+      toAccountId: accountId,
+      amount,
+      currency: txCurrency,
+      status: 'completed',
+    },
+    service: SERVICE_NAME,
+    ip: req.ip,
+  });
 
   // BUG (Issue #5): Console.log in production
   console.log('DEBUG: Deposit completed:', transaction.id, 'amount:', amount);
@@ -109,6 +145,8 @@ transactionRouter.post('/withdrawal', (req: Request, res: Response) => {
   // BUG (Issue #6): No null check - should verify account exists before proceeding
   // In a real system this would call the account service
 
+  const correlationId = (req.headers['x-correlation-id'] as string) || createCorrelationId();
+
   const transaction = createTransaction({
     fromAccountId: accountId,
     toAccountId: null,
@@ -118,7 +156,41 @@ transactionRouter.post('/withdrawal', (req: Request, res: Response) => {
     description: description || 'Withdrawal',
   });
 
+  emitAuditEvent({
+    eventType: 'TRANSACTION_INITIATED',
+    aggregateType: 'Transaction',
+    aggregateId: transaction.id,
+    actorId: (req.headers['x-actor-id'] as string) || 'system',
+    actorType: (req.headers['x-actor-id'] ? 'user' : 'system') as 'user' | 'system',
+    correlationId,
+    payload: {
+      type: 'withdrawal',
+      fromAccountId: accountId,
+      amount,
+      currency: (currency as Currency) || (DEFAULT_CURRENCY as Currency),
+    },
+    service: SERVICE_NAME,
+    ip: req.ip,
+  });
+
   updateTransactionStatus(transaction.id, 'completed');
+
+  emitAuditEvent({
+    eventType: 'TRANSACTION_COMPLETED',
+    aggregateType: 'Transaction',
+    aggregateId: transaction.id,
+    actorId: (req.headers['x-actor-id'] as string) || 'system',
+    actorType: (req.headers['x-actor-id'] ? 'user' : 'system') as 'user' | 'system',
+    correlationId,
+    payload: {
+      type: 'withdrawal',
+      fromAccountId: accountId,
+      amount,
+      status: 'completed',
+    },
+    service: SERVICE_NAME,
+    ip: req.ip,
+  });
 
   res.status(201).json(transaction);
 });
@@ -142,6 +214,8 @@ transactionRouter.post('/transfer', (req: Request, res: Response) => {
   // MISSING FEATURE (Issue #15): No idempotency key support
   // If client retries, a duplicate transaction will be created
 
+  const correlationId = (req.headers['x-correlation-id'] as string) || createCorrelationId();
+
   // BUG (Issue #9): Missing transaction rollback
   // Step 1: Debit the source account
   const debitTx = createTransaction({
@@ -151,6 +225,24 @@ transactionRouter.post('/transfer', (req: Request, res: Response) => {
     amount,
     currency: currency as Currency,
     description: `Transfer to ${toAccountId}: ${description || ''}`,
+  });
+
+  emitAuditEvent({
+    eventType: 'TRANSACTION_INITIATED',
+    aggregateType: 'Transaction',
+    aggregateId: debitTx.id,
+    actorId: (req.headers['x-actor-id'] as string) || 'system',
+    actorType: (req.headers['x-actor-id'] ? 'user' : 'system') as 'user' | 'system',
+    correlationId,
+    payload: {
+      type: 'transfer-debit',
+      fromAccountId,
+      toAccountId,
+      amount,
+      currency,
+    },
+    service: SERVICE_NAME,
+    ip: req.ip,
   });
 
   // Simulate possible failure in credit step
@@ -166,8 +258,60 @@ transactionRouter.post('/transfer', (req: Request, res: Response) => {
       description: `Transfer from ${fromAccountId}: ${description || ''}`,
     });
 
+    emitAuditEvent({
+      eventType: 'TRANSACTION_INITIATED',
+      aggregateType: 'Transaction',
+      aggregateId: creditTx.id,
+      actorId: (req.headers['x-actor-id'] as string) || 'system',
+      actorType: (req.headers['x-actor-id'] ? 'user' : 'system') as 'user' | 'system',
+      correlationId,
+      payload: {
+        type: 'transfer-credit',
+        fromAccountId,
+        toAccountId,
+        amount,
+        currency,
+      },
+      service: SERVICE_NAME,
+      ip: req.ip,
+    });
+
     updateTransactionStatus(debitTx.id, 'completed');
     updateTransactionStatus(creditTx.id, 'completed');
+
+    emitAuditEvent({
+      eventType: 'TRANSACTION_COMPLETED',
+      aggregateType: 'Transaction',
+      aggregateId: debitTx.id,
+      actorId: (req.headers['x-actor-id'] as string) || 'system',
+      actorType: (req.headers['x-actor-id'] ? 'user' : 'system') as 'user' | 'system',
+      correlationId,
+      payload: {
+        type: 'transfer-debit',
+        fromAccountId,
+        amount,
+        status: 'completed',
+      },
+      service: SERVICE_NAME,
+      ip: req.ip,
+    });
+
+    emitAuditEvent({
+      eventType: 'TRANSACTION_COMPLETED',
+      aggregateType: 'Transaction',
+      aggregateId: creditTx.id,
+      actorId: (req.headers['x-actor-id'] as string) || 'system',
+      actorType: (req.headers['x-actor-id'] ? 'user' : 'system') as 'user' | 'system',
+      correlationId,
+      payload: {
+        type: 'transfer-credit',
+        toAccountId,
+        amount,
+        status: 'completed',
+      },
+      service: SERVICE_NAME,
+      ip: req.ip,
+    });
 
     logger.info('Transfer completed', {
       debitTxId: debitTx.id,
@@ -188,6 +332,25 @@ transactionRouter.post('/transfer', (req: Request, res: Response) => {
 
     // Debit is NOT reversed here - money is "lost"
     updateTransactionStatus(debitTx.id, 'failed');
+
+    emitAuditEvent({
+      eventType: 'TRANSACTION_FAILED',
+      aggregateType: 'Transaction',
+      aggregateId: debitTx.id,
+      actorId: (req.headers['x-actor-id'] as string) || 'system',
+      actorType: (req.headers['x-actor-id'] ? 'user' : 'system') as 'user' | 'system',
+      correlationId,
+      payload: {
+        type: 'transfer',
+        fromAccountId,
+        toAccountId,
+        amount,
+        error: (error as Error).message,
+        failedStep: 'credit',
+      },
+      service: SERVICE_NAME,
+      ip: req.ip,
+    });
 
     res.status(500).json({
       error: 'Transfer failed during credit step',
