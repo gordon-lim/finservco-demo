@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { createLogger } from '../../../packages/logger/src';
 import { apiRouter } from './pages/api';
+import { getCircuitBreakerHealth } from './utils/service-client';
 
 const app = express();
 const logger = createLogger('dashboard');
@@ -18,7 +19,11 @@ app.get('/', (_req, res) => {
 });
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'dashboard' });
+  res.json({
+    status: 'ok',
+    service: 'dashboard',
+    circuitBreakers: getCircuitBreakerHealth(),
+  });
 });
 
 // MISSING FEATURE (Issue #19): No graceful shutdown
