@@ -48,8 +48,11 @@ export function createIdempotencyMiddleware(options: IdempotencyMiddlewareOption
     // Determine user scope (defaults to 'anonymous' if no getUserId provided)
     const userId = getUserId ? getUserId(req) : 'anonymous';
 
+    // Scope the key to method+path to prevent cross-endpoint replay
+    const scopedKey = `${req.method}:${req.path}:${idempotencyKey}`;
+
     // Try to acquire the key
-    const existing = store.acquire(userId, idempotencyKey);
+    const existing = store.acquire(userId, scopedKey);
 
     if (existing) {
       if (existing.status === 'processing') {
@@ -102,10 +105,10 @@ export function createIdempotencyMiddleware(options: IdempotencyMiddlewareOption
 
         // Only store successful responses (2xx) to allow retries on errors
         if (res.statusCode >= 200 && res.statusCode < 300) {
-          store.complete(userId, idempotencyKey, storedResponse);
+          store.complete(userId, scopedKey, storedResponse);
         } else {
           // Remove the key so client can retry on failure
-          store.remove(userId, idempotencyKey);
+          store.remove(userId, scopedKey);
         }
       }
 
@@ -127,9 +130,9 @@ export function createIdempotencyMiddleware(options: IdempotencyMiddlewareOption
             body: body ?? null,
             responseType: 'send',
           };
-          store.complete(userId, idempotencyKey, storedResponse);
+          store.complete(userId, scopedKey, storedResponse);
         } else {
-          store.remove(userId, idempotencyKey);
+          store.remove(userId, scopedKey);
         }
       }
 

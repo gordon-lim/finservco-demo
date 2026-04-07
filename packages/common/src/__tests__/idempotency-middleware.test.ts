@@ -206,6 +206,27 @@ describe('IdempotencyMiddleware', () => {
     });
   });
 
+  describe('endpoint scoping', () => {
+    it('should treat same key on different endpoints independently', async () => {
+      // POST to /api/test with a key
+      const res1 = await request(app)
+        .post('/api/test')
+        .set('Idempotency-Key', validUUID)
+        .send({ name: 'post-data' });
+
+      // PUT to /api/test/123 with the same key — should NOT be a replay
+      const res2 = await request(app)
+        .put('/api/test/123')
+        .set('Idempotency-Key', validUUID)
+        .send({ name: 'put-data' });
+
+      expect(res1.status).toBe(201);
+      expect(res1.headers['idempotency-replayed']).toBe('false');
+      expect(res2.status).toBe(200);
+      expect(res2.headers['idempotency-replayed']).toBe('false');
+    });
+  });
+
   describe('user scoping', () => {
     it('should scope keys per user to prevent collisions', async () => {
       const res1 = await request(app)
@@ -238,16 +259,16 @@ describe('IdempotencyMiddleware', () => {
 
       expect(res1.status).toBe(400);
 
-      // Key should be removed, allowing retry
-      const entry = store.get('anonymous', validUUID);
+      // Key should be removed, allowing retry (scoped key includes method:path)
+      const entry = store.get('anonymous', `POST:/api/test/error:${validUUID}`);
       expect(entry).toBeUndefined();
     });
   });
 
   describe('concurrent requests', () => {
     it('should return 409 Conflict when same key is still processing', async () => {
-      // Manually acquire the key to simulate in-progress state
-      store.acquire('anonymous', validUUID);
+      // Manually acquire the key to simulate in-progress state (scoped key includes method:path)
+      store.acquire('anonymous', `POST:/api/test:${validUUID}`);
 
       const res = await request(app)
         .post('/api/test')
