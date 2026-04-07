@@ -55,9 +55,8 @@ describe('CircuitBreaker', () => {
       await expect(breaker.execute(failingAction)).rejects.toThrow('service down');
       expect(breaker.getState()).toBe('CLOSED');
 
-      // 3rd failure trips the breaker to OPEN; since it's now open, the
-      // execute method uses the fallback path which throws CircuitBreakerOpenError
-      await expect(breaker.execute(failingAction)).rejects.toThrow(CircuitBreakerOpenError);
+      // 3rd failure trips the breaker to OPEN but propagates the original error
+      await expect(breaker.execute(failingAction)).rejects.toThrow('service down');
       expect(breaker.getState()).toBe('OPEN');
     });
   });
@@ -159,15 +158,16 @@ describe('CircuitBreaker', () => {
       // Wait for reset timeout
       await new Promise(resolve => setTimeout(resolve, 60));
 
-      // Test request fails -> back to OPEN, uses fallback
-      const result = await shortBreaker.execute(
-        async () => {
-          throw new Error('still failing');
-        },
-        () => 'fallback-after-half-open-fail',
-      );
+      // Test request fails -> back to OPEN, propagates original error
+      await expect(
+        shortBreaker.execute(
+          async () => {
+            throw new Error('still failing');
+          },
+          () => 'fallback-after-half-open-fail',
+        ),
+      ).rejects.toThrow('still failing');
 
-      expect(result).toBe('fallback-after-half-open-fail');
       expect(shortBreaker.getState()).toBe('OPEN');
     });
 
@@ -260,7 +260,7 @@ describe('CircuitBreaker', () => {
         }
       }
 
-      // Use explicit fallback
+      // Use explicit fallback on subsequent call (circuit already OPEN)
       await breaker.execute(
         async () => 'should not run',
         () => 'fallback',
@@ -269,8 +269,8 @@ describe('CircuitBreaker', () => {
       const metrics = breaker.getMetrics();
       expect(metrics.state).toBe('OPEN');
       expect(metrics.totalFailures).toBe(3);
-      // 2 fallbacks: one from the 3rd failure (circuit opened mid-request) + one explicit
-      expect(metrics.totalFallbacks).toBe(2);
+      // 1 fallback: only the explicit one (threshold-triggering failure propagates original error)
+      expect(metrics.totalFallbacks).toBe(1);
       expect(metrics.totalRequests).toBe(4);
     });
   });

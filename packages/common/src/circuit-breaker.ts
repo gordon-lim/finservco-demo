@@ -103,10 +103,7 @@ export class CircuitBreaker {
       this.onSuccess();
       return result;
     } catch (error) {
-      this.onFailure();
-      if (this.state === 'OPEN') {
-        return this.handleFallback<T>(fallback);
-      }
+      this.onFailure(error);
       throw error;
     }
   }
@@ -121,7 +118,7 @@ export class CircuitBreaker {
     this.successCount++;
   }
 
-  private onFailure(): void {
+  private onFailure(error: unknown): void {
     const now = Date.now();
     this.failures.push({ timestamp: now });
     this.totalFailures++;
@@ -135,6 +132,7 @@ export class CircuitBreaker {
       recentFailures,
       threshold: this.config.failureThreshold,
       state: this.state,
+      error: error instanceof Error ? error.message : String(error),
     });
 
     if (this.state === 'HALF-OPEN') {
