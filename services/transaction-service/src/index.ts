@@ -1,12 +1,28 @@
 import express from 'express';
 import { createLogger } from '../../../packages/logger/src';
 import { transactionRouter } from './routes/transactions';
+import { createGlobalRateLimiter, createGetRateLimiter, createPostTransactionRateLimiter } from '../../../packages/common/src/rate-limiter';
 
 const app = express();
 const logger = createLogger('transaction-service');
 const PORT = process.env.PORT || 3002;
 
 app.use(express.json());
+
+// Global rate limiting: 1000 req / 1 min
+const globalLimiter = createGlobalRateLimiter();
+app.use(globalLimiter.middleware());
+
+// Per-IP rate limiting for GET endpoints: 100 req / 1 min
+const getLimiter = createGetRateLimiter();
+app.get('/api/transactions', getLimiter.middleware());
+app.get('/api/transactions/:id', getLimiter.middleware());
+
+// Per-IP rate limiting for POST transaction endpoints: 20 req / 1 min
+const postTxLimiter = createPostTransactionRateLimiter();
+app.post('/api/transactions/deposit', postTxLimiter.middleware());
+app.post('/api/transactions/withdrawal', postTxLimiter.middleware());
+app.post('/api/transactions/transfer', postTxLimiter.middleware());
 
 // Request logging middleware
 app.use((req, _res, next) => {

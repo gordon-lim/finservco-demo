@@ -2,12 +2,21 @@ import express, { Request, Response, NextFunction } from 'express';
 import { createLogger } from '../../../packages/logger/src';
 import { assessTransactionRisk } from './rules/risk-rules';
 import type { Transaction } from '../../../packages/common/src/types';
+import { createGlobalRateLimiter, createPostTransactionRateLimiter } from '../../../packages/common/src/rate-limiter';
 
 const app = express();
 const logger = createLogger('risk-engine');
 const PORT = process.env.PORT || 3003;
 
 app.use(express.json());
+
+// Global rate limiting: 1000 req / 1 min
+const globalLimiter = createGlobalRateLimiter();
+app.use(globalLimiter.middleware());
+
+// Per-IP rate limiting for POST risk assessment: 20 req / 1 min
+const postLimiter = createPostTransactionRateLimiter();
+app.post('/api/risk/assess', postLimiter.middleware());
 
 app.use((req: Request, _res: Response, next: NextFunction) => {
   logger.info(`${req.method} ${req.path}`);

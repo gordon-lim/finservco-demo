@@ -1,12 +1,22 @@
 import express from 'express';
 import { createLogger } from '../../../packages/logger/src';
 import { accountRouter } from './routes/accounts';
+import { createGlobalRateLimiter, createGetRateLimiter } from '../../../packages/common/src/rate-limiter';
 
 const app = express();
 const logger = createLogger('account-service');
 const PORT = process.env.PORT || 3001;
 
 app.use(express.json());
+
+// Global rate limiting: 1000 req / 1 min
+const globalLimiter = createGlobalRateLimiter();
+app.use(globalLimiter.middleware());
+
+// Per-IP rate limiting for GET endpoints: 100 req / 1 min
+const getLimiter = createGetRateLimiter();
+app.get('/api/accounts', getLimiter.middleware());
+app.get('/api/accounts/:id', getLimiter.middleware());
 
 // Request logging middleware
 app.use((req, _res, next) => {

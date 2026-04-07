@@ -2,12 +2,26 @@ import express from 'express';
 import { createLogger } from '../../../packages/logger/src';
 import { notificationRouter } from './channels/notification-router';
 import { EventEmitter } from 'events';
+import { createGlobalRateLimiter, createGetRateLimiter, createNotificationRateLimiter } from '../../../packages/common/src/rate-limiter';
 
 const app = express();
 const logger = createLogger('notification-service');
 const PORT = process.env.PORT || 3004;
 
 app.use(express.json());
+
+// Global rate limiting: 1000 req / 1 min
+const globalLimiter = createGlobalRateLimiter();
+app.use(globalLimiter.middleware());
+
+// Per-IP rate limiting for GET endpoints: 100 req / 1 min
+const getLimiter = createGetRateLimiter();
+app.get('/api/notifications', getLimiter.middleware());
+app.get('/api/notifications/:id', getLimiter.middleware());
+
+// Per-IP rate limiting for POST notification send: 10 req / 1 min
+const notifyLimiter = createNotificationRateLimiter();
+app.post('/api/notifications/send', notifyLimiter.middleware());
 
 // BUG (Issue #18): Memory leak - EventEmitter listeners never cleaned up
 // Every request adds a new listener, but they're never removed
