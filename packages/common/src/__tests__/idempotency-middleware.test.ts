@@ -184,6 +184,26 @@ describe('IdempotencyMiddleware', () => {
       expect(res1.headers['idempotency-key']).toBe(validUUID);
       expect(res1.headers['idempotency-replayed']).toBe('false');
     });
+
+    it('should correctly replay DELETE 204 No Content without a body', async () => {
+      // First DELETE request
+      const res1 = await request(app)
+        .delete('/api/test/123')
+        .set('Idempotency-Key', validUUID);
+
+      expect(res1.status).toBe(204);
+      expect(res1.headers['idempotency-replayed']).toBe('false');
+
+      // Replay should also be 204 with no body
+      const res2 = await request(app)
+        .delete('/api/test/123')
+        .set('Idempotency-Key', validUUID);
+
+      expect(res2.status).toBe(204);
+      expect(res2.headers['idempotency-key']).toBe(validUUID);
+      expect(res2.headers['idempotency-replayed']).toBe('true');
+      expect(res2.text).toBe('');
+    });
   });
 
   describe('user scoping', () => {

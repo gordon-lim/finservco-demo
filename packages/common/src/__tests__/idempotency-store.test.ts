@@ -41,6 +41,7 @@ describe('IdempotencyStore', () => {
         statusCode: 201,
         headers: { 'content-type': 'application/json' },
         body: { id: 'tx-123' },
+        responseType: 'json',
       });
 
       const result = store.acquire('user1', 'key1');
@@ -50,6 +51,7 @@ describe('IdempotencyStore', () => {
         statusCode: 201,
         headers: { 'content-type': 'application/json' },
         body: { id: 'tx-123' },
+        responseType: 'json',
       });
     });
 
@@ -76,6 +78,7 @@ describe('IdempotencyStore', () => {
         statusCode: 201,
         headers: { 'content-type': 'application/json' },
         body: { success: true },
+        responseType: 'json',
       });
 
       const entry = store.get('user1', 'key1');
@@ -91,6 +94,7 @@ describe('IdempotencyStore', () => {
           statusCode: 200,
           headers: {},
           body: null,
+          responseType: 'json',
         });
       }).not.toThrow();
     });

@@ -68,7 +68,17 @@ export function createIdempotencyMiddleware(options: IdempotencyMiddlewareOption
         for (const [header, value] of Object.entries(existing.response.headers)) {
           res.set(header, value);
         }
-        res.status(existing.response.statusCode).json(existing.response.body);
+        if (existing.response.responseType === 'json') {
+          res.status(existing.response.statusCode).json(existing.response.body);
+        } else {
+          // Non-JSON response (e.g., 204 No Content) — use send/end
+          const status = existing.response.statusCode;
+          if (status === 204) {
+            res.status(status).end();
+          } else {
+            res.status(status).send(existing.response.body as string);
+          }
+        }
         return;
       }
     }
@@ -87,6 +97,7 @@ export function createIdempotencyMiddleware(options: IdempotencyMiddlewareOption
             'content-type': 'application/json',
           },
           body,
+          responseType: 'json',
         };
 
         // Only store successful responses (2xx) to allow retries on errors
@@ -114,6 +125,7 @@ export function createIdempotencyMiddleware(options: IdempotencyMiddlewareOption
             statusCode: res.statusCode,
             headers: {},
             body: body ?? null,
+            responseType: 'send',
           };
           store.complete(userId, idempotencyKey, storedResponse);
         } else {

@@ -1,8 +1,11 @@
 
+export type StoredResponseType = 'json' | 'send';
+
 export interface StoredResponse {
   statusCode: number;
   headers: Record<string, string>;
   body: unknown;
+  responseType: StoredResponseType;
 }
 
 export type IdempotencyEntryStatus = 'processing' | 'completed';
@@ -126,16 +129,12 @@ export class IdempotencyStore {
    */
   cleanup(): void {
     const now = Date.now();
-    let removed = 0;
 
     for (const [key, entry] of this.entries) {
       if (now > entry.expiresAt) {
         this.entries.delete(key);
-        removed++;
       }
     }
-
-    // Cleanup completed silently
   }
 
   /**
