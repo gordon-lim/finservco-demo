@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { sendEmail } from './email';
 import { sendSms } from './sms';
+import { sendSlackMessage } from './slack';
 import type { NotificationChannel } from '../../../../packages/common/src/types';
 import { createLogger } from '../../../../packages/logger/src';
 import { generateId, getCurrentTimestamp } from '../../../../packages/common/src/utils';
@@ -16,6 +17,7 @@ interface NotificationRequest {
   body: string;
   recipientEmail?: string;
   recipientPhone?: string;
+  slackWebhookUrl?: string;
 }
 
 // In-memory notification log
@@ -32,7 +34,7 @@ const notificationLog: Array<{
 
 // POST /api/notifications/send - Send a notification
 notificationRouter.post('/send', async (req: Request, res: Response) => {
-  const { accountId, channel, subject, body, recipientEmail, recipientPhone }: NotificationRequest = req.body;
+  const { accountId, channel, subject, body, recipientEmail, recipientPhone, slackWebhookUrl }: NotificationRequest = req.body;
 
   if (!accountId || !channel || !subject || !body) {
     res.status(400).json({ error: 'Missing required fields: accountId, channel, subject, body' });
@@ -69,6 +71,14 @@ notificationRouter.post('/send', async (req: Request, res: Response) => {
           return;
         }
         await sendSms(recipientPhone, body);
+        break;
+
+      case 'slack':
+        if (!slackWebhookUrl) {
+          res.status(400).json({ error: 'slackWebhookUrl is required for Slack notifications' });
+          return;
+        }
+        await sendSlackMessage(slackWebhookUrl, subject, body);
         break;
 
       case 'push':

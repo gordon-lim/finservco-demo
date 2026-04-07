@@ -10,7 +10,7 @@ export type TransactionStatus = 'pending' | 'completed' | 'failed' | 'cancelled'
 
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 
-export type NotificationChannel = 'email' | 'sms' | 'push';
+export type NotificationChannel = 'email' | 'sms' | 'push' | 'slack';
 
 export interface Account {
   id: string;
